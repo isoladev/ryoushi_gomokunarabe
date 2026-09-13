@@ -43,7 +43,7 @@
 
         header {
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
         h1 {
@@ -85,7 +85,7 @@
         }
 
         .controls-panel {
-            width: 320px;
+            width: 340px;
         }
 
         .board-panel {
@@ -104,24 +104,33 @@
 
         .status-badge {
             display: inline-block;
-            padding: 6px 12px;
+            padding: 8px 16px;
             border-radius: 20px;
             font-weight: bold;
-            font-size: 0.9rem;
+            font-size: 1rem;
             text-align: center;
             border: 1px solid transparent;
+            width: 100%;
+            box-sizing: border-box;
         }
 
-        .status-p1 {
-            background: rgba(0, 240, 255, 0.15);
-            color: var(--accent-cyan);
-            border-color: rgba(0, 240, 255, 0.4);
+        .status-my-turn {
+            background: rgba(0, 240, 255, 0.25);
+            color: #fff;
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+            animation: pulse 1.5s infinite alternate;
         }
 
-        .status-p2 {
-            background: rgba(255, 0, 85, 0.15);
-            color: var(--accent-magenta);
-            border-color: rgba(255, 0, 85, 0.4);
+        .status-wait {
+            background: rgba(255, 255, 255, 0.05);
+            color: #aaa;
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 5px rgba(0, 240, 255, 0.4); }
+            100% { box-shadow: 0 0 15px rgba(0, 240, 255, 0.8); }
         }
 
         .btn {
@@ -130,7 +139,7 @@
             color: #fff;
             padding: 10px 16px;
             border-radius: 6px;
-            font-size: 1rem;
+            font-size: 0.95rem;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -156,13 +165,19 @@
             background: linear-gradient(135deg, rgba(255, 183, 0, 0.3), rgba(255, 0, 85, 0.2));
             border-color: var(--accent-gold);
             color: #fff;
-            font-size: 1.1rem;
+            font-size: 1rem;
             padding: 12px;
         }
 
         .btn-observe:hover:not(:disabled) {
             background: linear-gradient(135deg, rgba(255, 183, 0, 0.5), rgba(255, 0, 85, 0.4));
-            box-shadow: 0 0 20px rgba(ff, 183, 0, 0.5);
+            box-shadow: 0 0 20px rgba(255, 183, 0, 0.5);
+        }
+
+        .btn-endturn {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05));
+            border-color: rgba(255, 255, 255, 0.4);
+            color: #fff;
         }
 
         .mode-selector {
@@ -212,8 +227,32 @@
             text-transform: uppercase;
         }
 
+        .room-id-display {
+            background: rgba(0, 240, 255, 0.1);
+            border: 1px solid var(--accent-cyan);
+            padding: 8px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: monospace;
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--accent-cyan);
+        }
+
+        .copy-btn {
+            background: rgba(0, 240, 255, 0.2);
+            border: 1px solid var(--accent-cyan);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+        }
+
         .log-box {
-            height: 140px;
+            height: 120px;
             background: rgba(0,0,0,0.4);
             border: 1px solid rgba(255,255,255,0.1);
             border-radius: 6px;
@@ -244,6 +283,7 @@
             box-shadow: 0 0 40px rgba(0, 240, 255, 0.5);
             z-index: 100;
             display: none;
+            width: 80%;
         }
 
         .banner h2 {
@@ -252,27 +292,14 @@
             margin-bottom: 10px;
         }
 
-        .player-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(0,0,0,0.2);
-            padding: 8px 12px;
+        .action-choice-box {
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            background: rgba(255, 183, 0, 0.1);
+            border: 1px solid var(--accent-gold);
+            padding: 10px;
             border-radius: 6px;
-        }
-
-        .prob-indicator {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.85rem;
-        }
-
-        .prob-dot {
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            display: inline-block;
         }
     </style>
 </head>
@@ -306,24 +333,35 @@
             <!-- オンライン対戦用パネル -->
             <div id="online-panel" class="online-box" style="display: none;">
                 <div style="font-size:0.85rem; text-align:center;">ルームIDを作成または入力</div>
-                <button class="btn" onclick="createOnlineRoom()">✨ 新しいルームを作成</button>
-                <div style="display:flex; gap:5px;">
+                <button class="btn" onclick="createOnlineRoom()" id="btn-create-room">✨ 新しいルームを作成</button>
+                
+                <div id="room-id-box" class="room-id-display" style="display:none;">
+                    <span id="created-room-id">------</span>
+                    <button class="copy-btn" onclick="copyRoomId()">コピー</button>
+                </div>
+
+                <div style="display:flex; gap:5px;" id="join-input-box">
                     <input type="text" id="room-input" placeholder="6桁コード" maxlength="6">
                     <button class="btn" onclick="joinOnlineRoom()">🚪 参加</button>
                 </div>
-                <div id="online-status" style="font-size:0.8rem; color:var(--accent-gold); text-align:center;"></div>
+
+                <div id="online-status" style="font-size:0.85rem; color:var(--accent-gold); text-align:center;"></div>
+                
+                <button class="btn" id="btn-ready" onclick="toggleReady()" style="display:none; background:linear-gradient(135deg, rgba(0,240,255,0.4), rgba(0,240,255,0.1)); border-color:var(--accent-cyan);">
+                    🎮 対局開始準備 (Ready)
+                </button>
             </div>
 
-            <!-- 手番・ステータス表示 -->
-            <div class="player-info">
-                <div>
-                    <div style="font-size:0.75rem; color:#888;">CURRENT TURN</div>
-                    <div id="turn-display" class="status-badge status-p1">P1 (黒) の番</div>
-                </div>
-                <div class="prob-indicator">
-                    <span>配置確率:</span>
-                    <strong id="next-prob-display" style="color:var(--accent-cyan); font-size:1.1rem;">90% 黒</strong>
-                </div>
+            <!-- プレイヤー情報 ＆ 手番ステータス -->
+            <div>
+                <div id="role-display" style="font-size:0.85rem; color:#888; margin-bottom:5px; text-align:center;">あなたは: ---</div>
+                <div id="turn-display" class="status-badge status-wait">対局開始を待っています</div>
+            </div>
+
+            <!-- 確率表示 -->
+            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.2); padding:8px 12px; border-radius:6px;">
+                <span style="font-size:0.85rem;">次の配置確率:</span>
+                <strong id="next-prob-display" style="color:var(--accent-cyan); font-size:1.1rem;">90% 黒</strong>
             </div>
 
             <!-- 観測残数表示 -->
@@ -338,12 +376,18 @@
                 </div>
             </div>
 
-            <!-- アクションボタン -->
-            <button id="btn-observe" class="btn btn-observe" onclick="triggerObservation()">
-                ⚛️ 観測を実行 (Collapse)
-            </button>
-
-            <button class="btn" onclick="undoMove()" id="btn-undo">↩️ 待った (Undo)</button>
+            <!-- 石配置後の選択アクション（観測するか手番終了か） -->
+            <div id="action-choice-box" class="action-choice-box">
+                <div style="font-size:0.85rem; text-align:center; color:var(--accent-gold); font-weight:bold;">
+                    石を置きました。「観測」を行いますか？
+                </div>
+                <button id="btn-observe" class="btn btn-observe" onclick="triggerObservation()">
+                    ⚛️ 観測を実行する (Collapse)
+                </button>
+                <button id="btn-endturn" class="btn btn-endturn" onclick="finishTurnWithoutObservation()">
+                    ➡️ 観測せずにターン終了
+                </button>
+            </div>
 
             <!-- ログ -->
             <div>
@@ -354,7 +398,7 @@
     </div>
 
     <script>
-        // === ★★★ Firebase設定 ★★★ ===
+        // === ★★★ Firebase設定 (ここをご自身のキーに書き換えてください) ★★★ ===
         const firebaseConfig = {
             apiKey: "AIzaSyB1t_iHj6hF11l1Ja0d7NWCpfn_SsTbQBA",
             authDomain: "quantum-gomokunarabe.firebaseapp.com",
@@ -366,7 +410,7 @@
             measurementId: "G-NVS6NX7B8Y"
          };
 
-        // Initialize Firebase
+        // Firebase初期化
         let db = null;
         try {
             if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
@@ -382,7 +426,7 @@
         const CELL_SIZE = 34;
         const PADDING = 32;
 
-        // ゲーム状態変数
+        // ゲーム状態
         let board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
         let turn = 'P1'; // P1 or P2
         let p1TurnCount = 0;
@@ -393,12 +437,16 @@
         let gameMode = 'p2p'; // 'p2p', 'ai', 'online'
         let gameOver = false;
         let isMeasuring = false;
+        let awaitActionChoice = false; // 石を置いた直後の選択待ちフラグ
 
-        // オンライン用変数
+        // オンライン設定
         let roomId = null;
-        let myRole = null; // 'P1', 'P2', or null
+        let myRole = null; // 'P1', 'P2'
+        let p1Ready = false;
+        let p2Ready = false;
+        let gameStarted = false;
 
-        // Web Audio API 音響合成
+        // 音響（Web Audio API）
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         function playSound(type) {
             try {
@@ -445,7 +493,7 @@
             } catch(e) {}
         }
 
-        // 次の石の黒確率取得
+        // 次の石の黒確率
         function getNextBlackProbability(player, count) {
             if (player === 'P1') {
                 return count % 2 === 0 ? 0.90 : 0.70;
@@ -454,7 +502,6 @@
             }
         }
 
-        // 初期化
         const canvas = document.getElementById('board');
         const ctx = canvas.getContext('2d');
 
@@ -473,8 +520,13 @@
             moveHistory = [];
             gameOver = false;
             isMeasuring = false;
+            awaitActionChoice = false;
+
+            if (gameMode !== 'online') gameStarted = true;
+
             document.getElementById('banner').style.display = 'none';
-            log("ゲームを開始しました。");
+            document.getElementById('action-choice-box').style.display = 'none';
+            log("ゲームが開始されました。");
             updateUI();
             drawBoard();
         }
@@ -485,11 +537,17 @@
             document.getElementById(`mode-${mode}`).classList.add('active');
             
             document.getElementById('online-panel').style.display = mode === 'online' ? 'flex' : 'none';
-            document.getElementById('btn-undo').style.display = mode === 'online' ? 'none' : 'flex';
+            if (mode === 'online') {
+                gameStarted = false;
+                myRole = null;
+            } else {
+                gameStarted = true;
+                myRole = null;
+            }
             resetGame();
         }
 
-        // Canvas 描画
+        // 描画
         function drawBoard() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -497,20 +555,18 @@
             ctx.strokeStyle = '#2a3b5c';
             ctx.lineWidth = 1;
             for (let i = 0; i < BOARD_SIZE; i++) {
-                // 横線
                 ctx.beginPath();
                 ctx.moveTo(PADDING, PADDING + i * CELL_SIZE);
                 ctx.lineTo(PADDING + (BOARD_SIZE - 1) * CELL_SIZE, PADDING + i * CELL_SIZE);
                 ctx.stroke();
 
-                // 縦線
                 ctx.beginPath();
                 ctx.moveTo(PADDING + i * CELL_SIZE, PADDING);
                 ctx.lineTo(PADDING + i * CELL_SIZE, PADDING + (BOARD_SIZE - 1) * CELL_SIZE);
                 ctx.stroke();
             }
 
-            // 星（天元など）
+            // 星
             const stars = [3, 7, 11];
             ctx.fillStyle = '#00f0ff';
             stars.forEach(r => {
@@ -531,7 +587,6 @@
                         const radius = CELL_SIZE * 0.42;
 
                         if (stone.collapsed) {
-                            // 確定した石
                             ctx.beginPath();
                             ctx.arc(x, y, radius, 0, Math.PI * 2);
                             if (stone.finalColor === 'black') {
@@ -545,31 +600,26 @@
                             ctx.fill();
                             ctx.stroke();
                         } else {
-                            // 未観測（量子重ね合わせ）石
                             const prob = stone.blackProb;
                             
-                            // 円グラフ描画（黒比率）
                             ctx.beginPath();
                             ctx.moveTo(x, y);
                             ctx.arc(x, y, radius, -Math.PI/2, -Math.PI/2 + Math.PI * 2 * prob);
                             ctx.fillStyle = '#1a1a24';
                             ctx.fill();
 
-                            // 円グラフ描画（白比率）
                             ctx.beginPath();
                             ctx.moveTo(x, y);
                             ctx.arc(x, y, radius, -Math.PI/2 + Math.PI * 2 * prob, -Math.PI/2 + Math.PI * 2);
                             ctx.fillStyle = '#e0f7fc';
                             ctx.fill();
 
-                            // 外枠リング
                             ctx.beginPath();
                             ctx.arc(x, y, radius, 0, Math.PI * 2);
                             ctx.strokeStyle = stone.owner === 'P1' ? 'rgba(0,240,255,0.8)' : 'rgba(255,0,85,0.8)';
                             ctx.lineWidth = 2;
                             ctx.stroke();
 
-                            // パーセンテージ表示
                             ctx.fillStyle = prob >= 0.5 ? '#fff' : '#000';
                             ctx.font = 'bold 10px sans-serif';
                             ctx.textAlign = 'center';
@@ -580,7 +630,7 @@
                 }
             }
 
-            // 直前着手ハイライト
+            // 着手ハイライト
             if (moveHistory.length > 0) {
                 const last = moveHistory[moveHistory.length - 1];
                 const x = PADDING + last.c * CELL_SIZE;
@@ -594,7 +644,7 @@
 
         // クリック処理
         function handleCanvasClick(e) {
-            if (gameOver || isMeasuring) return;
+            if (gameOver || isMeasuring || awaitActionChoice || !gameStarted) return;
             if (gameMode === 'online' && turn !== myRole) return;
 
             const rect = canvas.getBoundingClientRect();
@@ -611,19 +661,18 @@
             }
         }
 
-        // 石を置く
+        // 石を置く（この時点では手番は終了しない）
         function placeStone(r, c) {
             const count = turn === 'P1' ? p1TurnCount : p2TurnCount;
             const prob = getNextBlackProbability(turn, count);
 
-            const stone = {
+            board[r][c] = {
                 owner: turn,
                 blackProb: prob,
                 collapsed: false,
                 finalColor: null
             };
 
-            board[r][c] = stone;
             moveHistory.push({ r, c, player: turn });
 
             if (turn === 'P1') p1TurnCount++;
@@ -632,8 +681,8 @@
             playSound('place');
             log(`${turn}: (${r+1}, ${c+1}) に ${Math.round(prob*100)}% 黒石を配置`);
 
-            // ターン交代
-            turn = turn === 'P1' ? 'P2' : 'P1';
+            // 観測選択モードへ
+            awaitActionChoice = true;
 
             if (gameMode === 'online') {
                 syncOnlineState();
@@ -641,13 +690,20 @@
                 updateUI();
                 drawBoard();
 
-                if (gameMode === 'ai' && turn === 'P2' && !gameOver) {
-                    setTimeout(makeAIMove, 400);
+                if (gameMode === 'ai' && turn === 'P2') {
+                    // AIの場合はランダムで観測判断
+                    setTimeout(() => {
+                        if (Math.random() < 0.3 && p2ObsLeft > 0) {
+                            triggerObservation();
+                        } else {
+                            finishTurnWithoutObservation();
+                        }
+                    }, 500);
                 }
             }
         }
 
-        // 観測 (Observation) 実行
+        // 観測実行
         function triggerObservation() {
             if (gameOver || isMeasuring) return;
 
@@ -663,12 +719,30 @@
             executeCollapseLogic(turn);
         }
 
+        // 観測を行わずにターン終了
+        function finishTurnWithoutObservation() {
+            awaitActionChoice = false;
+            turn = turn === 'P1' ? 'P2' : 'P1';
+
+            if (gameMode === 'online') {
+                syncOnlineState();
+            } else {
+                updateUI();
+                drawBoard();
+
+                if (gameMode === 'ai' && turn === 'P2' && !gameOver) {
+                    setTimeout(makeAIMove, 400);
+                }
+            }
+        }
+
+        // 観測収束処理
         function executeCollapseLogic(observer) {
             isMeasuring = true;
+            awaitActionChoice = false;
             playSound('observe');
             log(`⚛️ ${observer} が観測を実行！波動関数が収束します...`);
 
-            // 収束処理
             for (let r = 0; r < BOARD_SIZE; r++) {
                 for (let c = 0; c < BOARD_SIZE; c++) {
                     if (board[r][c] && !board[r][c].collapsed) {
@@ -681,17 +755,24 @@
 
             drawBoard();
 
-            // 勝敗判定
-            const winnerColor = checkWinner();
+            // 勝敗判定（両者同時成立時のルール含む）
+            const result = checkWinnerDetailed();
 
-            if (winnerColor) {
+            if (result.hasBlack && result.hasWhite) {
+                // 【ルール改修】両者同時に5連が揃った場合は「観測者」の勝利！
                 playSound('win');
                 gameOver = true;
-                const winnerName = winnerColor === 'black' ? 'P1 (黒)' : 'P2 (白)';
+                const winnerName = observer === 'P1' ? 'P1 (黒)' : 'P2 (白)';
+                showBanner("観測成功！ (同時成立ルール)", `両者のラインが完成！観測者 [${winnerName}] の勝利！`);
+                log(`🏆 黒・白両方の5連が成立！観測者 ${winnerName} の勝ち！`);
+            } else if (result.hasBlack || result.hasWhite) {
+                playSound('win');
+                gameOver = true;
+                const winnerName = result.hasBlack ? 'P1 (黒)' : 'P2 (白)';
                 showBanner("観測成功！勝利確定", `${winnerName} の5連が揃いました！`);
                 log(`🏆 ${winnerName} の勝利！`);
             } else {
-                // 勝敗がつかなかった場合は元の量子状態に復元
+                // 決定打なし → 元の重ね合わせ状態に復元
                 setTimeout(() => {
                     playSound('revert');
                     for (let r = 0; r < BOARD_SIZE; r++) {
@@ -703,6 +784,7 @@
                         }
                     }
                     isMeasuring = false;
+                    turn = turn === 'P1' ? 'P2' : 'P1';
                     log("⚠️ 決定打なし。盤面は元の量子状態へ復元されました。");
                     
                     if (gameMode === 'online') {
@@ -710,6 +792,10 @@
                     } else {
                         updateUI();
                         drawBoard();
+
+                        if (gameMode === 'ai' && turn === 'P2' && !gameOver) {
+                            setTimeout(makeAIMove, 400);
+                        }
                     }
                 }, 1500);
             }
@@ -721,9 +807,12 @@
             }
         }
 
-        // 5連チェック
-        function checkWinner() {
+        // 詳細勝利チェック（黒・白それぞれの完成状況を返す）
+        function checkWinnerDetailed() {
+            let hasBlack = false;
+            let hasWhite = false;
             const dirs = [[0,1], [1,0], [1,1], [1,-1]];
+
             for (let r = 0; r < BOARD_SIZE; r++) {
                 for (let c = 0; c < BOARD_SIZE; c++) {
                     const cell = board[r][c];
@@ -740,45 +829,62 @@
                                     } else break;
                                 } else break;
                             }
-                            if (cnt >= 5) return color;
+                            if (cnt >= 5) {
+                                if (color === 'black') hasBlack = true;
+                                if (color === 'white') hasWhite = true;
+                            }
                         }
                     }
                 }
             }
-            return null;
-        }
-
-        // 待った (Undo)
-        function undoMove() {
-            if (moveHistory.length === 0 || gameOver || isMeasuring) return;
-
-            const last = moveHistory.pop();
-            board[last.r][last.c] = null;
-
-            if (last.player === 'P1') p1TurnCount--;
-            else p2TurnCount--;
-
-            turn = last.player;
-            log(`↩️ (${last.r+1}, ${last.c+1}) の手を取り消しました。`);
-            updateUI();
-            drawBoard();
+            return { hasBlack, hasWhite };
         }
 
         // UI更新
         function updateUI() {
-            const turnDisp = document.getElementById('turn-display');
-            turnDisp.innerText = turn === 'P1' ? "P1 (黒) の番" : "P2 (白) の番";
-            turnDisp.className = `status-badge ${turn === 'P1' ? 'status-p1' : 'status-p2'}`;
+            // ロール表示
+            const roleDisp = document.getElementById('role-display');
+            if (gameMode === 'online') {
+                roleDisp.innerText = myRole ? `あなた: ${myRole === 'P1' ? 'P1 (黒)' : 'P2 (白)'}` : "対戦待ち";
+            } else {
+                roleDisp.innerText = "ローカル対戦モード";
+            }
 
+            // 手番表示
+            const turnDisp = document.getElementById('turn-display');
+            if (!gameStarted) {
+                turnDisp.innerText = "マッチング・準備待ち";
+                turnDisp.className = "status-badge status-wait";
+            } else {
+                const isMyTurn = (gameMode !== 'online') || (turn === myRole);
+                if (isMyTurn) {
+                    turnDisp.innerText = `あなたの手番 (${turn})`;
+                    turnDisp.className = "status-badge status-my-turn";
+                } else {
+                    turnDisp.innerText = `相手の思考中... (${turn})`;
+                    turnDisp.className = "status-badge status-wait";
+                }
+            }
+
+            // 確率表示
             const count = turn === 'P1' ? p1TurnCount : p2TurnCount;
             const prob = getNextBlackProbability(turn, count);
             document.getElementById('next-prob-display').innerText = `${Math.round(prob * 100)}% 黒`;
 
+            // 観測残数
             document.getElementById('p1-obs-count').innerText = `${p1ObsLeft} 回`;
             document.getElementById('p2-obs-count').innerText = `${p2ObsLeft} 回`;
 
-            const currentObsLeft = turn === 'P1' ? p1ObsLeft : p2ObsLeft;
-            document.getElementById('btn-observe').disabled = currentObsLeft <= 0 || gameOver || isMeasuring;
+            // 石配置後のアクション分岐表示
+            const actionBox = document.getElementById('action-choice-box');
+            const isMyTurn = (gameMode !== 'online') || (turn === myRole);
+            if (awaitActionChoice && isMyTurn && !gameOver) {
+                actionBox.style.display = 'flex';
+                const currentObsLeft = turn === 'P1' ? p1ObsLeft : p2ObsLeft;
+                document.getElementById('btn-observe').disabled = currentObsLeft <= 0;
+            } else {
+                actionBox.style.display = 'none';
+            }
         }
 
         function log(msg) {
@@ -799,7 +905,6 @@
         function makeAIMove() {
             if (gameOver || turn !== 'P2') return;
 
-            // 空きセル取得
             let empties = [];
             for (let r = 0; r < BOARD_SIZE; r++) {
                 for (let c = 0; c < BOARD_SIZE; c++) {
@@ -808,22 +913,23 @@
             }
 
             if (empties.length > 0) {
-                // 中央寄りを優先して選択
-                empties.sort((a,b) => {
-                    const distA = Math.abs(a.r - 7) + Math.abs(a.c - 7);
-                    const distB = Math.abs(b.r - 7) + Math.abs(b.c - 7);
-                    return distA - distB;
-                });
+                empties.sort((a,b) => (Math.abs(a.r-7)+Math.abs(a.c-7)) - (Math.abs(b.r-7)+Math.abs(b.c-7)));
                 const pick = empties[Math.floor(Math.random() * Math.min(5, empties.length))];
                 placeStone(pick.r, pick.c);
             }
         }
 
-        // === オンライン対戦機能 (Firebase) ===
+        // === オンライン対戦機能 ===
         function createOnlineRoom() {
-            if (!db) { alert("Firebase設定が入力されていません！コード内のfirebaseConfigを設定してください。"); return; }
+            if (!db) { alert("Firebase設定が入力されていません！"); return; }
             roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
             myRole = 'P1';
+
+            document.getElementById('created-room-id').innerText = roomId;
+            document.getElementById('room-id-box').style.display = 'flex';
+            document.getElementById('btn-create-room').style.display = 'none';
+            document.getElementById('join-input-box').style.display = 'none';
+            document.getElementById('btn-ready').style.display = 'block';
 
             const roomRef = db.ref('rooms/' + roomId);
             roomRef.set({
@@ -833,12 +939,16 @@
                 p2TurnCount: 0,
                 p1ObsLeft: 5,
                 p2ObsLeft: 5,
+                p1Ready: false,
+                p2Ready: false,
+                gameStarted: false,
                 gameOver: false,
-                isMeasuring: false
+                isMeasuring: false,
+                awaitActionChoice: false
             });
 
-            document.getElementById('online-status').innerText = `ルーム作成成功！ID: ${roomId} (P1: 黒)`;
-            log(`🌐 ルームを作成しました。ID: ${roomId}`);
+            document.getElementById('online-status').innerText = `ルーム作成完了！対戦相手の参加を待っています...`;
+            log(`🌐 ルーム作成 ID: ${roomId}`);
             listenToOnlineRoom();
         }
 
@@ -852,26 +962,46 @@
 
             db.ref('rooms/' + roomId).once('value', snapshot => {
                 if (snapshot.exists()) {
-                    document.getElementById('online-status').innerText = `ルーム ${roomId} に参加中 (P2: 白)`;
+                    document.getElementById('btn-create-room').style.display = 'none';
+                    document.getElementById('join-input-box').style.display = 'none';
+                    document.getElementById('btn-ready').style.display = 'block';
+                    document.getElementById('online-status').innerText = `ルーム ${roomId} にマッチングしました！準備完了を押してください。`;
                     log(`🌐 ルーム ${roomId} に参加しました。`);
                     listenToOnlineRoom();
                 } else {
-                    alert("ルームが見つかりません。");
+                    alert("指定されたルームが見つかりません。");
                 }
             });
         }
 
+        function copyRoomId() {
+            if (!roomId) return;
+            navigator.clipboard.writeText(roomId).then(() => {
+                alert(`ルームID [${roomId}] をクリップボードにコピーしました！`);
+            });
+        }
+
+        function toggleReady() {
+            if (!db || !roomId) return;
+            const ref = db.ref(`rooms/${roomId}/${myRole === 'P1' ? 'p1Ready' : 'p2Ready'}`);
+            ref.set(true);
+            document.getElementById('btn-ready').disabled = true;
+            document.getElementById('btn-ready').innerText = "✓ 準備完了 (待機中)";
+        }
+
         function syncOnlineState() {
             if (!db || !roomId) return;
-            db.ref('rooms/' + roomId).set({
+            db.ref('rooms/' + roomId).update({
                 board: JSON.stringify(board),
                 turn: turn,
                 p1TurnCount: p1TurnCount,
                 p2TurnCount: p2TurnCount,
                 p1ObsLeft: p1ObsLeft,
                 p2ObsLeft: p2ObsLeft,
+                gameStarted: gameStarted,
                 gameOver: gameOver,
-                isMeasuring: isMeasuring
+                isMeasuring: isMeasuring,
+                awaitActionChoice: awaitActionChoice
             });
         }
 
@@ -885,8 +1015,26 @@
                     p2TurnCount = data.p2TurnCount;
                     p1ObsLeft = data.p1ObsLeft;
                     p2ObsLeft = data.p2ObsLeft;
+                    p1Ready = data.p1Ready || false;
+                    p2Ready = data.p2Ready || false;
+                    gameStarted = data.gameStarted || false;
                     gameOver = data.gameOver;
                     isMeasuring = data.isMeasuring;
+                    awaitActionChoice = data.awaitActionChoice || false;
+
+                    // 両者Readyチェックで対局スタート
+                    if (p1Ready && p2Ready && !gameStarted) {
+                        gameStarted = true;
+                        if (myRole === 'P1') {
+                            db.ref('rooms/' + roomId).update({ gameStarted: true });
+                        }
+                        document.getElementById('online-status').innerText = "⚔️ 両者の準備が完了しました！対局開始！";
+                        log("⚔️ マッチング完了！対局が始まりました。");
+                    } else if (!gameStarted) {
+                        if (p1Ready || p2Ready) {
+                            document.getElementById('online-status').innerText = "相手の準備完了を待っています...";
+                        }
+                    }
 
                     updateUI();
                     drawBoard();

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>量子五目並べ (Quantum Gomoku) - Mobile Enhanced</title>
+    <title>量子五目並べ (Quantum Gomoku)</title>
     <!-- 安定した Firebase SDK (v9 compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -64,7 +64,7 @@
             align-items: center;
         }
 
-        /* === 1. ボード上部のデカ手番表示 === */
+        /* 1. ボード上部の手番・状態表示 */
         .turn-banner {
             width: 100%;
             padding: 12px;
@@ -236,7 +236,7 @@
         }
 
         .log-box {
-            height: 90px;
+            height: 85px;
             background: rgba(0,0,0,0.4);
             border: 1px solid rgba(255,255,255,0.1);
             border-radius: 6px;
@@ -254,7 +254,7 @@
             padding-bottom: 2px;
         }
 
-        /* === 2. モーダルダイアログ === */
+        /* 石配置後のモーダルダイアログ */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -308,7 +308,7 @@
         }
 
         .banner h2 {
-            font-size: 2rem;
+            font-size: 1.8rem;
             margin-bottom: 10px;
         }
 
@@ -330,7 +330,7 @@
     </header>
 
     <div class="main-container">
-        <!-- 1. 手番表示（ボード上部へ配置） -->
+        <!-- 手番表示 -->
         <div id="turn-banner" class="turn-banner turn-enemy-turn">
             対局開始を待っています
         </div>
@@ -339,10 +339,10 @@
         <div class="board-container">
             <canvas id="board" width="360" height="360"></canvas>
 
-            <!-- 3. 勝敗確定モーダル -->
+            <!-- 勝敗確定モーダル -->
             <div id="banner" class="banner">
                 <h2 id="banner-title">結果</h2>
-                <p id="banner-text" style="font-size:1.1rem; margin-bottom:15px;"></p>
+                <p id="banner-text" style="font-size:1.0rem; margin-bottom:15px; color:#ddd;"></p>
                 <button class="btn" onclick="resetGame()" style="width:100%;">もう一度遊ぶ</button>
             </div>
         </div>
@@ -403,7 +403,7 @@
         </div>
     </div>
 
-    <!-- 2. 石配置後の観測選択モーダル -->
+    <!-- 石配置後の観測選択モーダル -->
     <div id="action-modal" class="modal-overlay">
         <div class="modal-content">
             <h3 style="color:var(--accent-gold); font-size:1.2rem;">石を配置しました</h3>
@@ -420,7 +420,7 @@
     </div>
 
     <script>
-        // === ★★★ Firebase設定 (取得したキーを貼り付けてください) ★★★ ===
+        // === Firebase設定（取得した情報をそのまま貼り付けてください） ===
         const firebaseConfig = {
             apiKey: "AIzaSyB1t_iHj6hF11l1Ja0d7NWCpfn_SsTbQBA",
             authDomain: "quantum-gomokunarabe.firebaseapp.com",
@@ -467,7 +467,9 @@
         let p1Ready = false;
         let p2Ready = false;
         let gameStarted = false;
-        let lastObservedSeq = 0; // SE再生用の観測シーケンス番号
+        let lastObservedSeq = 0;
+        let winnerRole = null;
+        let winDetailReason = "";
 
         // Web Audio API
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -555,6 +557,8 @@
             isMeasuring = false;
             awaitActionChoice = false;
             lastObservedSeq = 0;
+            winnerRole = null;
+            winDetailReason = "";
 
             if (gameMode !== 'online') gameStarted = true;
 
@@ -758,8 +762,7 @@
             isMeasuring = true;
             awaitActionChoice = false;
             lastObservedSeq++;
-            
-            // 観測音（SE）再生
+
             playSound('observe');
             log(`⚛️ ${observer} が観測を実行！`);
 
@@ -780,13 +783,15 @@
             if (result.hasBlack && result.hasWhite) {
                 playSound('win');
                 gameOver = true;
-                const winnerRole = observer;
-                showPersonalizedResult(winnerRole, "観測成功！ (同時成立ルール)");
+                winnerRole = observer;
+                winDetailReason = "両者の5連が同時に完成（観測実行者の勝利）";
+                renderOutcomeModal();
             } else if (result.hasBlack || result.hasWhite) {
                 playSound('win');
                 gameOver = true;
-                const winnerRole = result.hasBlack ? 'P1' : 'P2';
-                showPersonalizedResult(winnerRole, "観測成功！勝利確定");
+                winnerRole = result.hasBlack ? 'P1' : 'P2';
+                winDetailReason = `${winnerRole === 'P1' ? '黒' : '白'} の5連が完成しました`;
+                renderOutcomeModal();
             } else {
                 setTimeout(() => {
                     playSound('revert');
@@ -822,8 +827,10 @@
             }
         }
 
-        // 3. あなたの勝ち/負け 表示関数
-        function showPersonalizedResult(winnerRole, reasonText) {
+        // 双方に適切な勝敗画面を表示する処理
+        function renderOutcomeModal() {
+            if (!gameOver) return;
+
             const banner = document.getElementById('banner');
             const title = document.getElementById('banner-title');
             const text = document.getElementById('banner-text');
@@ -835,17 +842,21 @@
                 isIWin = (winnerRole === 'P1');
             } else {
                 // 2Pローカル
-                isIWin = true;
+                title.innerText = `🎉 ${winnerRole} (${winnerRole==='P1'?'黒':'白'}) の勝利！`;
+                text.innerText = winDetailReason;
+                banner.className = "banner banner-win";
+                banner.style.display = 'block';
+                return;
             }
 
             if (isIWin) {
                 banner.className = "banner banner-win";
                 title.innerText = "🎉 あなたの勝ちです！";
-                text.innerText = `${reasonText} [${winnerRole === 'P1' ? '黒' : '白'}]`;
+                text.innerText = winDetailReason;
             } else {
                 banner.className = "banner banner-lose";
                 title.innerText = "💀 あなたの負けです…";
-                text.innerText = `${reasonText} 相手の5連が完成しました。`;
+                text.innerText = winDetailReason;
             }
             banner.style.display = 'block';
         }
@@ -883,7 +894,6 @@
         }
 
         function updateUI() {
-            // Role & Banner
             const roleDisp = document.getElementById('role-display');
             const turnBanner = document.getElementById('turn-banner');
 
@@ -910,7 +920,6 @@
                 }
             }
 
-            // Probability & Observations
             const count = turn === 'P1' ? p1TurnCount : p2TurnCount;
             const prob = getNextBlackProbability(turn, count);
             document.getElementById('next-prob-display').innerText = `${Math.round(prob * 100)}% 黒`;
@@ -918,7 +927,6 @@
             document.getElementById('p1-obs-count').innerText = `${p1ObsLeft} 回`;
             document.getElementById('p2-obs-count').innerText = `${p2ObsLeft} 回`;
 
-            // モーダル表示切り替え
             const actionModal = document.getElementById('action-modal');
             const isMyTurn = (gameMode !== 'online') || (turn === myRole);
             if (awaitActionChoice && isMyTurn && !gameOver) {
@@ -956,7 +964,7 @@
             }
         }
 
-        // === オンライン対戦機能 (Compat DB) ===
+        // === オンライン対戦機能 (Compat API) ===
         function createOnlineRoom() {
             if (!db) { alert("Firebaseの設定キーが入力されていません！"); return; }
             roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -982,7 +990,9 @@
                 gameOver: false,
                 isMeasuring: false,
                 awaitActionChoice: false,
-                lastObservedSeq: 0
+                lastObservedSeq: 0,
+                winnerRole: null,
+                winDetailReason: ""
             });
 
             document.getElementById('online-status').innerText = `ルーム作成完了！相手の参加を待っています...`;
@@ -1040,7 +1050,9 @@
                 gameOver: gameOver,
                 isMeasuring: isMeasuring,
                 awaitActionChoice: awaitActionChoice,
-                lastObservedSeq: lastObservedSeq
+                lastObservedSeq: lastObservedSeq,
+                winnerRole: winnerRole,
+                winDetailReason: winDetailReason
             });
         }
 
@@ -1061,19 +1073,31 @@
                     isMeasuring = data.isMeasuring;
                     awaitActionChoice = data.awaitActionChoice || false;
 
-                    // 相手が観測した場合もSEを鳴らす
+                    // 勝敗情報の同期
+                    if (data.winnerRole && data.winDetailReason) {
+                        winnerRole = data.winnerRole;
+                        winDetailReason = data.winDetailReason;
+                        renderOutcomeModal();
+                    }
+
+                    // 相手の観測時にも音を鳴らす
                     if (data.lastObservedSeq && data.lastObservedSeq > lastObservedSeq) {
                         lastObservedSeq = data.lastObservedSeq;
                         playSound('observe');
                     }
 
+                    // ★ 両者Readyになったらランダムで先手/後手を決定
                     if (p1Ready && p2Ready && !gameStarted) {
                         gameStarted = true;
                         if (myRole === 'P1') {
-                            db.ref('rooms/' + roomId).update({ gameStarted: true });
+                            const firstTurn = Math.random() < 0.5 ? 'P1' : 'P2';
+                            db.ref('rooms/' + roomId).update({ 
+                                gameStarted: true,
+                                turn: firstTurn
+                            });
                         }
-                        document.getElementById('online-status').innerText = "⚔️ 両者の準備完了！対局スタート！";
-                        log("⚔️ マッチング完了！対局開始！");
+                        document.getElementById('online-status').innerText = "⚔️ マッチング完了！対局スタート！";
+                        log(`⚔️ マッチング完了！ランダム抽選により [${turn}] の先手でスタート！`);
                     }
 
                     updateUI();

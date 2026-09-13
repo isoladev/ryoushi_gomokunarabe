@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>量子五目並べ (Quantum Gomoku) - Online</title>
+    <!-- Firebase SDK (v9/v10 Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --panel-bg: rgba(20, 27, 45, 0.75);
+            --panel-border: rgba(0, 240, 255, 0.2);
+            --text-color: #e0f7fc;
+            --accent-cyan: #00f0ff;
+            --accent-magenta: #ff0055;
+            --accent-gold: #ffb700;
+            --font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 50% 20%, rgba(0, 240, 255, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(255, 0, 85, 0.05) 0%, transparent 50%);
+            color: var(--text-color);
+            font-family: var(--font-family);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 20px 10px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            letter-spacing: 2px;
+            background: linear-gradient(135deg, var(--accent-cyan), #ffffff, var(--accent-magenta));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+        }
+
+        .subtitle {
+            font-size: 0.9rem;
+            color: rgba(224, 247, 252, 0.6);
+            margin-top: 5px;
+        }
+
+        .main-container {
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            max-width: 1100px;
+            width: 100%;
+            justify-content: center;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .game-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .controls-panel {
+            width: 320px;
+        }
+
+        .board-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        canvas {
+            border-radius: 8px;
+            box-shadow: 0 0 25px rgba(0, 240, 255, 0.15);
+            cursor: pointer;
+            background-color: #121826;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            text-align: center;
+            border: 1px solid transparent;
+        }
+
+        .status-p1 {
+            background: rgba(0, 240, 255, 0.15);
+            color: var(--accent-cyan);
+            border-color: rgba(0, 240, 255, 0.4);
+        }
+
+        .status-p2 {
+            background: rgba(255, 0, 85, 0.15);
+            color: var(--accent-magenta);
+            border-color: rgba(255, 0, 85, 0.4);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.2), rgba(0, 240, 255, 0.05));
+            border: 1px solid var(--accent-cyan);
+            color: #fff;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.4), rgba(0, 240, 255, 0.1));
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            border-color: #555;
+        }
+
+        .btn-observe {
+            background: linear-gradient(135deg, rgba(255, 183, 0, 0.3), rgba(255, 0, 85, 0.2));
+            border-color: var(--accent-gold);
+            color: #fff;
+            font-size: 1.1rem;
+            padding: 12px;
+        }
+
+        .btn-observe:hover:not(:disabled) {
+            background: linear-gradient(135deg, rgba(255, 183, 0, 0.5), rgba(255, 0, 85, 0.4));
+            box-shadow: 0 0 20px rgba(ff, 183, 0, 0.5);
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 5px;
+            background: rgba(0,0,0,0.3);
+            padding: 4px;
+            border-radius: 6px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 8px 4px;
+            font-size: 0.8rem;
+            background: transparent;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .mode-btn.active {
+            background: var(--accent-cyan);
+            color: #000;
+            font-weight: bold;
+        }
+
+        .online-box {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px dashed var(--accent-cyan);
+            border-radius: 6px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .online-box input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--accent-cyan);
+            color: #fff;
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 1rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .log-box {
+            height: 140px;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 0.8rem;
+            overflow-y: auto;
+            color: #aaa;
+            display: flex;
+            flex-direction: column-reverse;
+        }
+
+        .log-entry {
+            margin-bottom: 4px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding-bottom: 2px;
+        }
+
+        .banner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10, 15, 25, 0.95);
+            border: 2px solid var(--accent-cyan);
+            border-radius: 12px;
+            padding: 20px 30px;
+            text-align: center;
+            box-shadow: 0 0 40px rgba(0, 240, 255, 0.5);
+            z-index: 100;
+            display: none;
+        }
+
+        .banner h2 {
+            font-size: 1.8rem;
+            color: var(--accent-gold);
+            margin-bottom: 10px;
+        }
+
+        .player-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0,0,0,0.2);
+            padding: 8px 12px;
+            border-radius: 6px;
+        }
+
+        .prob-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+        }
+
+        .prob-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>QUANTUM GOMOKU</h1>
+        <div class="subtitle">量子五目並べ - オンライン対戦版</div>
+    </header>
+
+    <div class="main-container">
+        <!-- ボードエリア -->
+        <div class="game-panel board-panel">
+            <canvas id="board" width="540" height="540"></canvas>
+            <div id="banner" class="banner">
+                <h2 id="banner-title">勝敗確定</h2>
+                <p id="banner-text">プレイヤー1の勝利！</p>
+                <button class="btn" onclick="resetGame()" style="margin: 15px auto 0;">もう一度遊ぶ</button>
+            </div>
+        </div>
+
+        <!-- コントロールエリア -->
+        <div class="game-panel controls-panel">
+            <!-- モード切替 -->
+            <div class="mode-selector">
+                <button class="mode-btn active" id="mode-p2p" onclick="setGameMode('p2p')">2P対戦</button>
+                <button class="mode-btn" id="mode-ai" onclick="setGameMode('ai')">VS AI</button>
+                <button class="mode-btn" id="mode-online" onclick="setGameMode('online')">🌐 オンライン</button>
+            </div>
+
+            <!-- オンライン対戦用パネル -->
+            <div id="online-panel" class="online-box" style="display: none;">
+                <div style="font-size:0.85rem; text-align:center;">ルームIDを作成または入力</div>
+                <button class="btn" onclick="createOnlineRoom()">✨ 新しいルームを作成</button>
+                <div style="display:flex; gap:5px;">
+                    <input type="text" id="room-input" placeholder="6桁コード" maxlength="6">
+                    <button class="btn" onclick="joinOnlineRoom()">🚪 参加</button>
+                </div>
+                <div id="online-status" style="font-size:0.8rem; color:var(--accent-gold); text-align:center;"></div>
+            </div>
+
+            <!-- 手番・ステータス表示 -->
+            <div class="player-info">
+                <div>
+                    <div style="font-size:0.75rem; color:#888;">CURRENT TURN</div>
+                    <div id="turn-display" class="status-badge status-p1">P1 (黒) の番</div>
+                </div>
+                <div class="prob-indicator">
+                    <span>配置確率:</span>
+                    <strong id="next-prob-display" style="color:var(--accent-cyan); font-size:1.1rem;">90% 黒</strong>
+                </div>
+            </div>
+
+            <!-- 観測残数表示 -->
+            <div style="display:flex; justify-content:space-between; gap:10px;">
+                <div style="flex:1; background:rgba(0,0,0,0.2); padding:8px; border-radius:6px; text-align:center;">
+                    <div style="font-size:0.75rem; color:#aaa;">P1 観測残り</div>
+                    <div id="p1-obs-count" style="font-weight:bold; color:var(--accent-cyan); font-size:1.2rem;">5 回</div>
+                </div>
+                <div style="flex:1; background:rgba(0,0,0,0.2); padding:8px; border-radius:6px; text-align:center;">
+                    <div style="font-size:0.75rem; color:#aaa;">P2 観測残り</div>
+                    <div id="p2-obs-count" style="font-weight:bold; color:var(--accent-magenta); font-size:1.2rem;">5 回</div>
+                </div>
+            </div>
+
+            <!-- アクションボタン -->
+            <button id="btn-observe" class="btn btn-observe" onclick="triggerObservation()">
+                ⚛️ 観測を実行 (Collapse)
+            </button>
+
+            <button class="btn" onclick="undoMove()" id="btn-undo">↩️ 待った (Undo)</button>
+
+            <!-- ログ -->
+            <div>
+                <div style="font-size:0.8rem; margin-bottom:4px; color:#888;">対局ログ</div>
+                <div id="log-box" class="log-box"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // === ★★★ Firebase設定 ★★★ ===
+        const firebaseConfig = {
+            apiKey: "AIzaSyB1t_iHj6hF11l1Ja0d7NWCpfn_SsTbQBA",
+            authDomain: "quantum-gomokunarabe.firebaseapp.com",
+            databaseURL: "https://quantum-gomokunarabe-default-rtdb.firebaseio.com",
+            projectId: "quantum-gomokunarabe",
+            storageBucket: "quantum-gomokunarabe.firebasestorage.app",
+            messagingSenderId: "373772002123",
+            appId: "1:373772002123:web:debd6babbf6b3598e4fece",
+            measurementId: "G-NVS6NX7B8Y"
+         };
+
+        // Initialize Firebase
+        let db = null;
+        try {
+            if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+                firebase.initializeApp(firebaseConfig);
+                db = firebase.database();
+            }
+        } catch (e) {
+            console.error("Firebase init error:", e);
+        }
+
+        // 定数設定
+        const BOARD_SIZE = 15;
+        const CELL_SIZE = 34;
+        const PADDING = 32;
+
+        // ゲーム状態変数
+        let board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
+        let turn = 'P1'; // P1 or P2
+        let p1TurnCount = 0;
+        let p2TurnCount = 0;
+        let p1ObsLeft = 5;
+        let p2ObsLeft = 5;
+        let moveHistory = [];
+        let gameMode = 'p2p'; // 'p2p', 'ai', 'online'
+        let gameOver = false;
+        let isMeasuring = false;
+
+        // オンライン用変数
+        let roomId = null;
+        let myRole = null; // 'P1', 'P2', or null
+
+        // Web Audio API 音響合成
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(type) {
+            try {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+                if (type === 'place') {
+                    osc.frequency.setValueAtTime(400, now);
+                    osc.frequency.exponentialRampToValueAtTime(120, now + 0.08);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.08);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                } else if (type === 'observe') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(150, now);
+                    osc.frequency.linearRampToValueAtTime(880, now + 0.3);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+                    osc.start(now);
+                    osc.stop(now + 0.4);
+                } else if (type === 'revert') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(600, now);
+                    osc.frequency.exponentialRampToValueAtTime(150, now + 0.25);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else if (type === 'win') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523.25, now);
+                    osc.frequency.setValueAtTime(659.25, now + 0.1);
+                    osc.frequency.setValueAtTime(783.99, now + 0.2);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.5);
+                    osc.start(now);
+                    osc.stop(now + 0.5);
+                }
+            } catch(e) {}
+        }
+
+        // 次の石の黒確率取得
+        function getNextBlackProbability(player, count) {
+            if (player === 'P1') {
+                return count % 2 === 0 ? 0.90 : 0.70;
+            } else {
+                return count % 2 === 0 ? 0.10 : 0.30;
+            }
+        }
+
+        // 初期化
+        const canvas = document.getElementById('board');
+        const ctx = canvas.getContext('2d');
+
+        function init() {
+            canvas.addEventListener('click', handleCanvasClick);
+            resetGame();
+        }
+
+        function resetGame() {
+            board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null));
+            turn = 'P1';
+            p1TurnCount = 0;
+            p2TurnCount = 0;
+            p1ObsLeft = 5;
+            p2ObsLeft = 5;
+            moveHistory = [];
+            gameOver = false;
+            isMeasuring = false;
+            document.getElementById('banner').style.display = 'none';
+            log("ゲームを開始しました。");
+            updateUI();
+            drawBoard();
+        }
+
+        function setGameMode(mode) {
+            gameMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`mode-${mode}`).classList.add('active');
+            
+            document.getElementById('online-panel').style.display = mode === 'online' ? 'flex' : 'none';
+            document.getElementById('btn-undo').style.display = mode === 'online' ? 'none' : 'flex';
+            resetGame();
+        }
+
+        // Canvas 描画
+        function drawBoard() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 格子線
+            ctx.strokeStyle = '#2a3b5c';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < BOARD_SIZE; i++) {
+                // 横線
+                ctx.beginPath();
+                ctx.moveTo(PADDING, PADDING + i * CELL_SIZE);
+                ctx.lineTo(PADDING + (BOARD_SIZE - 1) * CELL_SIZE, PADDING + i * CELL_SIZE);
+                ctx.stroke();
+
+                // 縦線
+                ctx.beginPath();
+                ctx.moveTo(PADDING + i * CELL_SIZE, PADDING);
+                ctx.lineTo(PADDING + i * CELL_SIZE, PADDING + (BOARD_SIZE - 1) * CELL_SIZE);
+                ctx.stroke();
+            }
+
+            // 星（天元など）
+            const stars = [3, 7, 11];
+            ctx.fillStyle = '#00f0ff';
+            stars.forEach(r => {
+                stars.forEach(c => {
+                    ctx.beginPath();
+                    ctx.arc(PADDING + c * CELL_SIZE, PADDING + r * CELL_SIZE, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            });
+
+            // 石の描画
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    const stone = board[r][c];
+                    if (stone) {
+                        const x = PADDING + c * CELL_SIZE;
+                        const y = PADDING + r * CELL_SIZE;
+                        const radius = CELL_SIZE * 0.42;
+
+                        if (stone.collapsed) {
+                            // 確定した石
+                            ctx.beginPath();
+                            ctx.arc(x, y, radius, 0, Math.PI * 2);
+                            if (stone.finalColor === 'black') {
+                                ctx.fillStyle = '#111';
+                                ctx.strokeStyle = '#00f0ff';
+                            } else {
+                                ctx.fillStyle = '#eee';
+                                ctx.strokeStyle = '#ff0055';
+                            }
+                            ctx.lineWidth = 2;
+                            ctx.fill();
+                            ctx.stroke();
+                        } else {
+                            // 未観測（量子重ね合わせ）石
+                            const prob = stone.blackProb;
+                            
+                            // 円グラフ描画（黒比率）
+                            ctx.beginPath();
+                            ctx.moveTo(x, y);
+                            ctx.arc(x, y, radius, -Math.PI/2, -Math.PI/2 + Math.PI * 2 * prob);
+                            ctx.fillStyle = '#1a1a24';
+                            ctx.fill();
+
+                            // 円グラフ描画（白比率）
+                            ctx.beginPath();
+                            ctx.moveTo(x, y);
+                            ctx.arc(x, y, radius, -Math.PI/2 + Math.PI * 2 * prob, -Math.PI/2 + Math.PI * 2);
+                            ctx.fillStyle = '#e0f7fc';
+                            ctx.fill();
+
+                            // 外枠リング
+                            ctx.beginPath();
+                            ctx.arc(x, y, radius, 0, Math.PI * 2);
+                            ctx.strokeStyle = stone.owner === 'P1' ? 'rgba(0,240,255,0.8)' : 'rgba(255,0,85,0.8)';
+                            ctx.lineWidth = 2;
+                            ctx.stroke();
+
+                            // パーセンテージ表示
+                            ctx.fillStyle = prob >= 0.5 ? '#fff' : '#000';
+                            ctx.font = 'bold 10px sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText(`${Math.round(prob * 100)}%`, x, y);
+                        }
+                    }
+                }
+            }
+
+            // 直前着手ハイライト
+            if (moveHistory.length > 0) {
+                const last = moveHistory[moveHistory.length - 1];
+                const x = PADDING + last.c * CELL_SIZE;
+                const y = PADDING + last.r * CELL_SIZE;
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffb700';
+                ctx.fill();
+            }
+        }
+
+        // クリック処理
+        function handleCanvasClick(e) {
+            if (gameOver || isMeasuring) return;
+            if (gameMode === 'online' && turn !== myRole) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const c = Math.round((x - PADDING) / CELL_SIZE);
+            const r = Math.round((y - PADDING) / CELL_SIZE);
+
+            if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE) {
+                if (!board[r][c]) {
+                    placeStone(r, c);
+                }
+            }
+        }
+
+        // 石を置く
+        function placeStone(r, c) {
+            const count = turn === 'P1' ? p1TurnCount : p2TurnCount;
+            const prob = getNextBlackProbability(turn, count);
+
+            const stone = {
+                owner: turn,
+                blackProb: prob,
+                collapsed: false,
+                finalColor: null
+            };
+
+            board[r][c] = stone;
+            moveHistory.push({ r, c, player: turn });
+
+            if (turn === 'P1') p1TurnCount++;
+            else p2TurnCount++;
+
+            playSound('place');
+            log(`${turn}: (${r+1}, ${c+1}) に ${Math.round(prob*100)}% 黒石を配置`);
+
+            // ターン交代
+            turn = turn === 'P1' ? 'P2' : 'P1';
+
+            if (gameMode === 'online') {
+                syncOnlineState();
+            } else {
+                updateUI();
+                drawBoard();
+
+                if (gameMode === 'ai' && turn === 'P2' && !gameOver) {
+                    setTimeout(makeAIMove, 400);
+                }
+            }
+        }
+
+        // 観測 (Observation) 実行
+        function triggerObservation() {
+            if (gameOver || isMeasuring) return;
+
+            const obsLeft = turn === 'P1' ? p1ObsLeft : p2ObsLeft;
+            if (obsLeft <= 0) {
+                alert("観測可能回数が残っていません！");
+                return;
+            }
+
+            if (turn === 'P1') p1ObsLeft--;
+            else p2ObsLeft--;
+
+            executeCollapseLogic(turn);
+        }
+
+        function executeCollapseLogic(observer) {
+            isMeasuring = true;
+            playSound('observe');
+            log(`⚛️ ${observer} が観測を実行！波動関数が収束します...`);
+
+            // 収束処理
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if (board[r][c] && !board[r][c].collapsed) {
+                        const rand = Math.random();
+                        board[r][c].collapsed = true;
+                        board[r][c].finalColor = rand < board[r][c].blackProb ? 'black' : 'white';
+                    }
+                }
+            }
+
+            drawBoard();
+
+            // 勝敗判定
+            const winnerColor = checkWinner();
+
+            if (winnerColor) {
+                playSound('win');
+                gameOver = true;
+                const winnerName = winnerColor === 'black' ? 'P1 (黒)' : 'P2 (白)';
+                showBanner("観測成功！勝利確定", `${winnerName} の5連が揃いました！`);
+                log(`🏆 ${winnerName} の勝利！`);
+            } else {
+                // 勝敗がつかなかった場合は元の量子状態に復元
+                setTimeout(() => {
+                    playSound('revert');
+                    for (let r = 0; r < BOARD_SIZE; r++) {
+                        for (let c = 0; c < BOARD_SIZE; c++) {
+                            if (board[r][c]) {
+                                board[r][c].collapsed = false;
+                                board[r][c].finalColor = null;
+                            }
+                        }
+                    }
+                    isMeasuring = false;
+                    log("⚠️ 決定打なし。盤面は元の量子状態へ復元されました。");
+                    
+                    if (gameMode === 'online') {
+                        syncOnlineState();
+                    } else {
+                        updateUI();
+                        drawBoard();
+                    }
+                }, 1500);
+            }
+
+            if (gameMode === 'online') {
+                syncOnlineState();
+            } else {
+                updateUI();
+            }
+        }
+
+        // 5連チェック
+        function checkWinner() {
+            const dirs = [[0,1], [1,0], [1,1], [1,-1]];
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    const cell = board[r][c];
+                    if (cell && cell.collapsed) {
+                        const color = cell.finalColor;
+                        for (let [dr, dc] of dirs) {
+                            let cnt = 1;
+                            for (let i = 1; i < 5; i++) {
+                                const nr = r + dr * i;
+                                const nc = c + dc * i;
+                                if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+                                    if (board[nr][nc] && board[nr][nc].collapsed && board[nr][nc].finalColor === color) {
+                                        cnt++;
+                                    } else break;
+                                } else break;
+                            }
+                            if (cnt >= 5) return color;
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        // 待った (Undo)
+        function undoMove() {
+            if (moveHistory.length === 0 || gameOver || isMeasuring) return;
+
+            const last = moveHistory.pop();
+            board[last.r][last.c] = null;
+
+            if (last.player === 'P1') p1TurnCount--;
+            else p2TurnCount--;
+
+            turn = last.player;
+            log(`↩️ (${last.r+1}, ${last.c+1}) の手を取り消しました。`);
+            updateUI();
+            drawBoard();
+        }
+
+        // UI更新
+        function updateUI() {
+            const turnDisp = document.getElementById('turn-display');
+            turnDisp.innerText = turn === 'P1' ? "P1 (黒) の番" : "P2 (白) の番";
+            turnDisp.className = `status-badge ${turn === 'P1' ? 'status-p1' : 'status-p2'}`;
+
+            const count = turn === 'P1' ? p1TurnCount : p2TurnCount;
+            const prob = getNextBlackProbability(turn, count);
+            document.getElementById('next-prob-display').innerText = `${Math.round(prob * 100)}% 黒`;
+
+            document.getElementById('p1-obs-count').innerText = `${p1ObsLeft} 回`;
+            document.getElementById('p2-obs-count').innerText = `${p2ObsLeft} 回`;
+
+            const currentObsLeft = turn === 'P1' ? p1ObsLeft : p2ObsLeft;
+            document.getElementById('btn-observe').disabled = currentObsLeft <= 0 || gameOver || isMeasuring;
+        }
+
+        function log(msg) {
+            const logBox = document.getElementById('log-box');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerText = msg;
+            logBox.appendChild(entry);
+        }
+
+        function showBanner(title, text) {
+            document.getElementById('banner-title').innerText = title;
+            document.getElementById('banner-text').innerText = text;
+            document.getElementById('banner').style.display = 'block';
+        }
+
+        // 簡易AI
+        function makeAIMove() {
+            if (gameOver || turn !== 'P2') return;
+
+            // 空きセル取得
+            let empties = [];
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if (!board[r][c]) empties.push({ r, c });
+                }
+            }
+
+            if (empties.length > 0) {
+                // 中央寄りを優先して選択
+                empties.sort((a,b) => {
+                    const distA = Math.abs(a.r - 7) + Math.abs(a.c - 7);
+                    const distB = Math.abs(b.r - 7) + Math.abs(b.c - 7);
+                    return distA - distB;
+                });
+                const pick = empties[Math.floor(Math.random() * Math.min(5, empties.length))];
+                placeStone(pick.r, pick.c);
+            }
+        }
+
+        // === オンライン対戦機能 (Firebase) ===
+        function createOnlineRoom() {
+            if (!db) { alert("Firebase設定が入力されていません！コード内のfirebaseConfigを設定してください。"); return; }
+            roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+            myRole = 'P1';
+
+            const roomRef = db.ref('rooms/' + roomId);
+            roomRef.set({
+                board: JSON.stringify(board),
+                turn: 'P1',
+                p1TurnCount: 0,
+                p2TurnCount: 0,
+                p1ObsLeft: 5,
+                p2ObsLeft: 5,
+                gameOver: false,
+                isMeasuring: false
+            });
+
+            document.getElementById('online-status').innerText = `ルーム作成成功！ID: ${roomId} (P1: 黒)`;
+            log(`🌐 ルームを作成しました。ID: ${roomId}`);
+            listenToOnlineRoom();
+        }
+
+        function joinOnlineRoom() {
+            if (!db) { alert("Firebase設定が入力されていません！"); return; }
+            const inputCode = document.getElementById('room-input').value.trim().toUpperCase();
+            if (!inputCode) return;
+
+            roomId = inputCode;
+            myRole = 'P2';
+
+            db.ref('rooms/' + roomId).once('value', snapshot => {
+                if (snapshot.exists()) {
+                    document.getElementById('online-status').innerText = `ルーム ${roomId} に参加中 (P2: 白)`;
+                    log(`🌐 ルーム ${roomId} に参加しました。`);
+                    listenToOnlineRoom();
+                } else {
+                    alert("ルームが見つかりません。");
+                }
+            });
+        }
+
+        function syncOnlineState() {
+            if (!db || !roomId) return;
+            db.ref('rooms/' + roomId).set({
+                board: JSON.stringify(board),
+                turn: turn,
+                p1TurnCount: p1TurnCount,
+                p2TurnCount: p2TurnCount,
+                p1ObsLeft: p1ObsLeft,
+                p2ObsLeft: p2ObsLeft,
+                gameOver: gameOver,
+                isMeasuring: isMeasuring
+            });
+        }
+
+        function listenToOnlineRoom() {
+            db.ref('rooms/' + roomId).on('value', snapshot => {
+                const data = snapshot.val();
+                if (data) {
+                    board = JSON.parse(data.board);
+                    turn = data.turn;
+                    p1TurnCount = data.p1TurnCount;
+                    p2TurnCount = data.p2TurnCount;
+                    p1ObsLeft = data.p1ObsLeft;
+                    p2ObsLeft = data.p2ObsLeft;
+                    gameOver = data.gameOver;
+                    isMeasuring = data.isMeasuring;
+
+                    updateUI();
+                    drawBoard();
+                }
+            });
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
